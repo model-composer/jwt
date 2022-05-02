@@ -1,4 +1,4 @@
-<?php namespace Model\Redis;
+<?php namespace Model\JWT;
 
 use Firebase\JWT\Key;
 use Firebase\JWT\JWT as FirebaseJWT;
