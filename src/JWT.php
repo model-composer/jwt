@@ -109,7 +109,7 @@ class JWT
 				];
 			}
 
-			return json_encode($newConfig);
+			return "<?php\nreturn " . var_export($newConfig, true) . ";\n";
 		});
 	}
 }
