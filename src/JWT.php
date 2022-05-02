@@ -100,7 +100,7 @@ class JWT
 			} elseif ($config['redis']) {
 				$newConfig = [
 					'type' => 'redis',
-					'key' => 'jwt-key',
+					'key' => null,
 				];
 			} else {
 				$newConfig = [
