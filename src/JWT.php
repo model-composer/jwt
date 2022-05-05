@@ -2,10 +2,8 @@
 
 use Firebase\JWT\Key;
 use Firebase\JWT\JWT as FirebaseJWT;
+use Model\Cache\Cache;
 use Model\Config\Config;
-use Symfony\Component\Cache\Adapter\AbstractAdapter;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter;
-use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Contracts\Cache\ItemInterface;
 
 class JWT
@@ -42,37 +40,11 @@ class JWT
 		if ($config['type'] === 'fixed') {
 			return $config['key'];
 		} else {
-			$cache = self::getCacheAdapter($config['type']);
+			$cache = Cache::getCacheAdapter($config['type']);
 
-			return $cache->get('jwt.key', function (ItemInterface $item) {
+			return $cache->get('model.jwt.key', function (ItemInterface $item) {
 				return bin2hex(random_bytes(64));
 			});
-		}
-	}
-
-	/**
-	 * @param string $type
-	 * @return AbstractAdapter
-	 * @throws \Exception
-	 */
-	private static function getCacheAdapter(string $type): AbstractAdapter
-	{
-		switch ($type) {
-			case 'redis':
-				if (!class_exists('\\Model\\Redis\\Redis'))
-					throw new \Exception('Please install model/redis');
-
-				$redis = \Model\Redis\Redis::getClient();
-				if (!$redis)
-					throw new \Exception('Invalid Redis configuration');
-
-				return new RedisAdapter($redis);
-
-			case 'file':
-				return new FilesystemAdapter();
-
-			default:
-				throw new \Exception('Unrecognized JWT cache type');
 		}
 	}
 

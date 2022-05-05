@@ -12,11 +12,8 @@
         "psr-4": {"Model\\JWT\\": "src/"}
     },
     "require": {
-        "model/config": "^0.2.0",
+        "model/config": "^0.3.0",
         "firebase/php-jwt": "^6.1",
-        "symfony/cache": "^6.0"
-    },
-    "suggest": {
-        "model/redis": "In case you decide to store JWT secret key to Redis"
+        "model/cache": "^0.1.0"
     }
 }
