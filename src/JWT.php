@@ -82,7 +82,7 @@ class JWT
 				];
 			}
 
-			return "<?php\nreturn " . var_export($newConfig, true) . ";\n";
+			return "<?php\nreturn " . var_export(['production' => $newConfig], true) . ";\n";
 		});
 	}
 }
