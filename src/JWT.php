@@ -42,7 +42,7 @@ class JWT
 		} else {
 			$cache = Cache::getCacheAdapter($config['type']);
 
-			return $cache->get('model:jwt:key', function (ItemInterface $item) {
+			return $cache->get('model.jwt.key', function (ItemInterface $item) {
 				$item->expiresAfter(3600 * 24 * 365);
 				return bin2hex(random_bytes(64));
 			});
