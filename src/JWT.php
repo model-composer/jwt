@@ -1,10 +1,9 @@
 <?php namespace Model\JWT;
 
+use Composer\InstalledVersions;
 use Firebase\JWT\Key;
 use Firebase\JWT\JWT as FirebaseJWT;
-use Model\Cache\Cache;
 use Model\Config\Config;
-use Symfony\Contracts\Cache\ItemInterface;
 
 class JWT
 {
@@ -37,16 +36,46 @@ class JWT
 	{
 		$config = self::getConfig();
 
-		if ($config['type'] === 'fixed') {
-			return $config['key'];
-		} else {
-			$cache = Cache::getCacheAdapter($config['type']);
+		switch ($config['type']) {
+			case 'fixed':
+				return $config['key'];
 
-			return $cache->get('model.jwt.key', function (ItemInterface $item) {
-				$item->expiresAfter(3600 * 24 * 365);
-				return bin2hex(random_bytes(64));
-			});
+			case 'redis':
+				if (InstalledVersions::isInstalled('model/redis'))
+					throw new \Exception('Please install model/redis');
+
+				$redisKey = $config['key'] ?? 'model.jwt.key';
+				$key = \Model\Redis\Redis::get($redisKey);
+				if (!$key) {
+					$key = self::generateNewKey();
+					\Model\Redis\Redis::set($redisKey, $key);
+					if (!empty($config['expire']))
+						\Model\Redis\Redis::expire($redisKey, $config['expire']);
+				}
+				return $key;
+
+			case 'file':
+				if (InstalledVersions::isInstalled('model/cache'))
+					throw new \Exception('Please install model/cache');
+
+				$cache = \Model\Cache\Cache::getCacheAdapter($config['type']);
+
+				return $cache->get('model.jwt.key', function (\Symfony\Contracts\Cache\ItemInterface $item) use ($config) {
+					if (!empty($config['expire']))
+						$item->expiresAfter($config['expire']);
+
+					return self::generateNewKey();
+				});
+				break;
 		}
+	}
+
+	/**
+	 * @return string
+	 */
+	private static function generateNewKey(): string
+	{
+		return bin2hex(random_bytes(64));
 	}
 
 	/**
@@ -61,6 +90,7 @@ class JWT
 			return [
 				'type' => 'file',
 				'key' => null,
+				'expire' => 3600 * 24 * 365,
 			];
 		}, function (string $configFile): ?string {
 			require $configFile;
@@ -69,16 +99,19 @@ class JWT
 				$newConfig = [
 					'type' => 'fixed',
 					'key' => $config['fixed-key'],
+					'expire' => null,
 				];
 			} elseif ($config['redis']) {
 				$newConfig = [
 					'type' => 'redis',
 					'key' => null,
+					'expire' => 3600 * 24 * 365,
 				];
 			} else {
 				$newConfig = [
 					'type' => 'file',
 					'key' => null,
+					'expire' => 3600 * 24 * 365,
 				];
 			}
 

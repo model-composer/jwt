@@ -14,6 +14,10 @@
     "require": {
         "model/config": "^0.4.0",
         "firebase/php-jwt": "^6.1",
-        "model/cache": "^0.1.0"
+        "composer-runtime-api": "^2.1"
+    },
+    "suggest": {
+        "model/cache": "If you want to store the secret key in the filesystem",
+        "model/redis": "If you want to store the secret key in redis"
     }
 }
