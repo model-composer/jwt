@@ -41,7 +41,7 @@ class JWT
 				return $config['key'];
 
 			case 'redis':
-				if (InstalledVersions::isInstalled('model/redis'))
+				if (!InstalledVersions::isInstalled('model/redis'))
 					throw new \Exception('Please install model/redis');
 
 				$redisKey = $config['key'] ?? 'model.jwt.key';
@@ -55,7 +55,7 @@ class JWT
 				return $key;
 
 			case 'file':
-				if (InstalledVersions::isInstalled('model/cache'))
+				if (!InstalledVersions::isInstalled('model/cache'))
 					throw new \Exception('Please install model/cache');
 
 				$cache = \Model\Cache\Cache::getCacheAdapter($config['type']);
