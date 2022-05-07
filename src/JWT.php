@@ -90,7 +90,7 @@ class JWT
 			return [
 				'type' => 'file',
 				'key' => null,
-				'expire' => 3600 * 24 * 365,
+				'expire' => null,
 			];
 		}, function (string $configFile): ?string {
 			require $configFile;
@@ -105,13 +105,13 @@ class JWT
 				$newConfig = [
 					'type' => 'redis',
 					'key' => null,
-					'expire' => 3600 * 24 * 365,
+					'expire' => null,
 				];
 			} else {
 				$newConfig = [
 					'type' => 'file',
 					'key' => null,
-					'expire' => 3600 * 24 * 365,
+					'expire' => null,
 				];
 			}
 
