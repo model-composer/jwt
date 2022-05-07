@@ -58,7 +58,7 @@ class JWT
 				if (!InstalledVersions::isInstalled('model/cache'))
 					throw new \Exception('Please install model/cache');
 
-				$cache = \Model\Cache\Cache::getCacheAdapter($config['type']);
+				$cache = \Model\Cache\Cache::getCacheAdapter('file');
 
 				return $cache->get('model.jwt.key', function (\Symfony\Contracts\Cache\ItemInterface $item) use ($config) {
 					if (!empty($config['expire']))
@@ -66,7 +66,6 @@ class JWT
 
 					return self::generateNewKey();
 				});
-				break;
 		}
 	}
 
