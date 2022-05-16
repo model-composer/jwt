@@ -88,7 +88,10 @@ class JWT
 		return Config::get('jwt', [
 			[
 				'version' => '0.4.0',
-				'migration' => function () {
+				'migration' => function (array $currentConfig, string $env) {
+					if ($currentConfig) // Already existing
+						return $currentConfig;
+
 					if (defined('INCLUDE_PATH') and file_exists(INCLUDE_PATH . 'app/config/JWT/config.php')) {
 						// ModEl 3 migration
 						require(INCLUDE_PATH . 'app/config/JWT/config.php');
