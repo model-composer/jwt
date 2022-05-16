@@ -85,36 +85,42 @@ class JWT
 	 */
 	private static function getConfig(): array
 	{
-		return Config::get('jwt', function () {
-			return [
-				'type' => 'file',
-				'key' => null,
-				'expire' => null,
-			];
-		}, function (string $configFile): ?string {
-			require $configFile;
+		return Config::get('jwt', [
+			[
+				'version' => '0.4.0',
+				'migration' => function () {
+					if (defined('INCLUDE_PATH') and file_exists(INCLUDE_PATH . 'app/config/JWT/config.php')) {
+						// ModEl 3 migration
+						require(INCLUDE_PATH . 'app/config/JWT/config.php');
 
-			if ($config['fixed-key']) {
-				$newConfig = [
-					'type' => 'fixed',
-					'key' => $config['fixed-key'],
-					'expire' => null,
-				];
-			} elseif ($config['redis']) {
-				$newConfig = [
-					'type' => 'redis',
-					'key' => null,
-					'expire' => null,
-				];
-			} else {
-				$newConfig = [
-					'type' => 'file',
-					'key' => null,
-					'expire' => null,
-				];
-			}
+						if ($config['fixed-key']) {
+							return [
+								'type' => 'fixed',
+								'key' => $config['fixed-key'],
+								'expire' => null,
+							];
+						} elseif ($config['redis']) {
+							return [
+								'type' => 'redis',
+								'key' => null,
+								'expire' => null,
+							];
+						} else {
+							return [
+								'type' => 'file',
+								'key' => null,
+								'expire' => null,
+							];
+						}
+					}
 
-			return "<?php\nreturn " . var_export(['production' => $newConfig], true) . ";\n";
-		});
+					return [
+						'type' => 'file',
+						'key' => null,
+						'expire' => null,
+					];
+				},
+			],
+		]);
 	}
 }
