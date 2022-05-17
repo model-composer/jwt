@@ -8,6 +8,8 @@ use Model\Config\Config;
 class JWT
 {
 	/**
+	 * Builds a token
+	 *
 	 * @param array $content
 	 * @return string
 	 */
@@ -21,16 +23,36 @@ class JWT
 	}
 
 	/**
+	 * Verifies and decodes a token
+	 *
 	 * @param string $stringToken
-	 * @return array|null
+	 * @return array
+	 * @throws \Exception
 	 */
-	public static function verify(string $stringToken): ?array
+	public static function verify(string $stringToken): array
 	{
 		return (array)FirebaseJWT::decode($stringToken, new Key(self::getKey(), 'HS512'));
 	}
 
 	/**
+	 * Decodes a token without verifying it
+	 *
+	 * @param string $stringToken
+	 * @return array
+	 * @throws \Exception
+	 */
+	public static function decode(string $stringToken): array
+	{
+		$token = explode('.', $stringToken);
+		if (count($token) !== 3)
+			throw new \Exception('A JWT token must be comprised of 3 parts', 400);
+
+		return json_decode(FirebaseJWT::urlsafeB64Decode($token[1]), true, 512, JSON_THROW_ON_ERROR);
+	}
+
+	/**
 	 * @return string
+	 * @throws \Exception
 	 */
 	private static function getKey(): string
 	{
