@@ -1,4 +1,4 @@
-<?php namespace Model\JWT;
+<?php namespace Model\Jwt;
 
 use Model\Config\AbstractConfigProvider;
 

@@ -9,7 +9,7 @@
         }
     ],
     "autoload": {
-        "psr-4": {"Model\\JWT\\": "src/"}
+        "psr-4": {"Model\\Jwt\\": "src/"}
     },
     "require": {
         "model/config": "^0.7.0",

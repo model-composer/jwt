@@ -1,4 +1,4 @@
-<?php namespace Model\JWT;
+<?php namespace Model\Jwt;
 
 use Composer\InstalledVersions;
 use Firebase\JWT\Key;
@@ -88,6 +88,9 @@ class JWT
 
 					return self::generateNewKey();
 				});
+
+			default:
+				throw new \Exception('Invalid JWT storage type');
 		}
 	}
 
