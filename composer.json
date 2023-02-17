@@ -17,7 +17,7 @@
         "composer-runtime-api": "^2.1"
     },
     "suggest": {
-        "model/cache": "If you want to store the secret key in the filesystem",
+        "model/settings": "If you want to store the secret key in the database",
         "model/redis": "If you want to store the secret key in redis"
     }
 }

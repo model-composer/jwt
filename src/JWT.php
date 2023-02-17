@@ -77,17 +77,27 @@ class JWT
 				return $key;
 
 			case 'file':
-				if (!InstalledVersions::isInstalled('model/cache'))
-					throw new \Exception('Please install model/cache');
+				if (empty($config['path']))
+					throw new \Exception('Please define a path for JWT key file');
 
-				$cache = \Model\Cache\Cache::getCacheAdapter('file');
+				$projectRoot = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR;
 
-				return $cache->get('model.jwt.key', function (\Symfony\Contracts\Cache\ItemInterface $item) use ($config) {
-					if (!empty($config['expire']))
-						$item->expiresAfter($config['expire']);
+				if (file_exists($projectRoot . $config['path'])) {
+					return file_get_contents($projectRoot . $config['path']);
+				} else {
+					$key = self::generateNewKey();
+					file_put_contents($projectRoot . $config['path'], $key);
+					return $key;
+				}
 
-					return self::generateNewKey();
-				});
+			case 'db':
+				$key = \Model\Settings\Settings::get($config['key'] ?? 'model.jwt.key');
+				if (!$key) {
+					$key = self::generateNewKey();
+					\Model\Settings\Settings::get($config['key'] ?? 'model.jwt.key', $key);
+				}
+
+				return $key;
 
 			default:
 				throw new \Exception('Invalid JWT storage type');
