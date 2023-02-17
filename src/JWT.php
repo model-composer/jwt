@@ -94,7 +94,7 @@ class JWT
 				$key = \Model\Settings\Settings::get($config['key'] ?? 'model.jwt.key');
 				if (!$key) {
 					$key = self::generateNewKey();
-					\Model\Settings\Settings::get($config['key'] ?? 'model.jwt.key', $key);
+					\Model\Settings\Settings::set($config['key'] ?? 'model.jwt.key', $key);
 				}
 
 				return $key;
