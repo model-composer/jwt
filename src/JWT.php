@@ -76,11 +76,11 @@ class JWT
 
 				$redisKey = $config['key'] ?? 'model:jwt';
 				$storedPrivate = self::unwrapFromStorage(\Model\Redis\Redis::get($redisKey . ':private'));
-				$storedPublic = self::unwrapFromStorage(\Model\Redis\Redis::get($redisKey . ':public'));
+				$storedPublic = \Model\Redis\Redis::get($redisKey . ':public');
 				if (!$storedPrivate or !$storedPublic) {
 					$keys = self::generateNewKey();
 					\Model\Redis\Redis::set($redisKey . ':private', self::wrapForStorage($keys['private']));
-					\Model\Redis\Redis::set($redisKey . ':public', self::wrapForStorage($keys['public']));
+					\Model\Redis\Redis::set($redisKey . ':public', $keys['public']);
 					if (!empty($config['expire'])) {
 						\Model\Redis\Redis::expire($redisKey . ':private', $config['expire']);
 						\Model\Redis\Redis::expire($redisKey . ':public', $config['expire']);
