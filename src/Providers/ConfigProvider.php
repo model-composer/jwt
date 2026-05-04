@@ -55,4 +55,13 @@ class ConfigProvider extends AbstractConfigProvider
 			],
 		];
 	}
+
+	public static function templating(): array
+	{
+		return [
+			'key',
+			'key.private',
+			'key.public',
+		];
+	}
 }
