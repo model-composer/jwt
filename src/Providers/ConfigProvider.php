@@ -48,6 +48,8 @@ class ConfigProvider extends AbstractConfigProvider
 			[
 				'version' => '0.5.0',
 				'migration' => function (array $currentConfig, string $env) {
+					if (!array_key_exists('crypt_key', $currentConfig))
+						$currentConfig['crypt_key'] = null;
 					if (($currentConfig['type'] ?? null) === 'fixed' and !is_array($currentConfig['key'] ?? null))
 						$currentConfig['key'] = null;
 					return $currentConfig;
@@ -62,6 +64,7 @@ class ConfigProvider extends AbstractConfigProvider
 			'key',
 			'key.private',
 			'key.public',
+			'crypt_key',
 		];
 	}
 }

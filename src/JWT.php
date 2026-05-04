@@ -8,6 +8,7 @@ use Model\Config\Config;
 class JWT
 {
 	private const ALGO = 'RS256';
+	private const ENC_PREFIX = 'enc:v1:';
 
 	/**
 	 * Builds a token
@@ -74,12 +75,12 @@ class JWT
 					throw new \Exception('Please install model/redis');
 
 				$redisKey = $config['key'] ?? 'model:jwt';
-				$storedPrivate = \Model\Redis\Redis::get($redisKey . ':private');
-				$storedPublic = \Model\Redis\Redis::get($redisKey . ':public');
+				$storedPrivate = self::unwrapFromStorage(\Model\Redis\Redis::get($redisKey . ':private'));
+				$storedPublic = self::unwrapFromStorage(\Model\Redis\Redis::get($redisKey . ':public'));
 				if (!$storedPrivate or !$storedPublic) {
 					$keys = self::generateNewKey();
-					\Model\Redis\Redis::set($redisKey . ':private', $keys['private']);
-					\Model\Redis\Redis::set($redisKey . ':public', $keys['public']);
+					\Model\Redis\Redis::set($redisKey . ':private', self::wrapForStorage($keys['private']));
+					\Model\Redis\Redis::set($redisKey . ':public', self::wrapForStorage($keys['public']));
 					if (!empty($config['expire'])) {
 						\Model\Redis\Redis::expire($redisKey . ':private', $config['expire']);
 						\Model\Redis\Redis::expire($redisKey . ':public', $config['expire']);
@@ -101,19 +102,20 @@ class JWT
 				$fullPath = $projectRoot . $config['path'];
 
 				$stored = file_exists($fullPath) ? file_get_contents($fullPath) : null;
+				$stored = self::unwrapFromStorage($stored);
 				if (!$stored or self::isLegacyKey($stored)) {
 					$keys = self::generateNewKey();
-					file_put_contents($fullPath, json_encode($keys));
+					file_put_contents($fullPath, self::wrapForStorage(json_encode($keys)));
 					return $keys;
 				}
 				return json_decode($stored, true);
 
 			case 'db':
 				$settingsKey = $config['key'] ?? 'model.jwt.key';
-				$stored = \Model\Settings\Settings::get($settingsKey);
+				$stored = self::unwrapFromStorage(\Model\Settings\Settings::get($settingsKey));
 				if (!$stored or self::isLegacyKey($stored)) {
 					$keys = self::generateNewKey();
-					\Model\Settings\Settings::set($settingsKey, json_encode($keys));
+					\Model\Settings\Settings::set($settingsKey, self::wrapForStorage(json_encode($keys)));
 					return $keys;
 				}
 				return json_decode($stored, true);
@@ -161,5 +163,72 @@ class JWT
 			'private' => $privateKey,
 			'public' => $details['key'],
 		];
+	}
+
+	/**
+	 * Wraps a value before storing it in the configured backend, encrypting it
+	 * with the configured "crypt_key" if present.
+	 *
+	 * @param string $value
+	 * @return string
+	 * @throws \Exception
+	 */
+	private static function wrapForStorage(string $value): string
+	{
+		$cryptKey = Config::get('jwt')['crypt_key'] ?? null;
+		if (!$cryptKey)
+			return $value;
+
+		$key = hash('sha256', $cryptKey, true);
+		$iv = random_bytes(12);
+		$tag = '';
+		$ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+		if ($ciphertext === false)
+			throw new \Exception('Unable to encrypt JWT key: ' . openssl_error_string());
+
+		return self::ENC_PREFIX . base64_encode($iv . $tag . $ciphertext);
+	}
+
+	/**
+	 * Reverses wrapForStorage. Returns null when the stored value is empty or
+	 * does not match the expected (encrypted/plain) shape — signalling the
+	 * caller to regenerate. Throws when the configured crypt_key cannot decrypt
+	 * an existing encrypted blob, to avoid silently destroying recoverable data.
+	 *
+	 * @param string|false|null $value
+	 * @return string|null
+	 * @throws \Exception
+	 */
+	private static function unwrapFromStorage(string|false|null $value): ?string
+	{
+		if ($value === null or $value === false or $value === '')
+			return null;
+
+		$cryptKey = Config::get('jwt')['crypt_key'] ?? null;
+		$isEncrypted = str_starts_with($value, self::ENC_PREFIX);
+
+		if ($cryptKey) {
+			if (!$isEncrypted)
+				return null; // Pre-existing plaintext key from before crypt_key was set: force regeneration
+
+			$payload = base64_decode(substr($value, strlen(self::ENC_PREFIX)), true);
+			if ($payload === false or strlen($payload) < 28)
+				throw new \Exception('Stored JWT key is malformed');
+
+			$iv = substr($payload, 0, 12);
+			$tag = substr($payload, 12, 16);
+			$ciphertext = substr($payload, 28);
+			$key = hash('sha256', $cryptKey, true);
+			$plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+			if ($plaintext === false)
+				throw new \Exception('Unable to decrypt stored JWT key — crypt_key mismatch?');
+
+			return $plaintext;
+		}
+
+		if ($isEncrypted)
+			throw new \Exception('Stored JWT key is encrypted but no crypt_key is configured');
+
+		return $value;
 	}
 }
