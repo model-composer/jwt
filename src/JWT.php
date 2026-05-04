@@ -20,7 +20,7 @@ class JWT
 	{
 		return FirebaseJWT::encode(
 			$content,
-			self::getKeys()['private'],
+			self::getPrivateKey(),
 			self::ALGO
 		);
 	}
@@ -34,7 +34,7 @@ class JWT
 	 */
 	public static function verify(string $stringToken): array
 	{
-		return (array)FirebaseJWT::decode($stringToken, new Key(self::getKeys()['public'], self::ALGO));
+		return (array)FirebaseJWT::decode($stringToken, new Key(self::getPublicKey(), self::ALGO));
 	}
 
 	/**
@@ -54,12 +54,39 @@ class JWT
 	}
 
 	/**
-	 * Loads (and regenerates if missing or legacy) the RSA keypair from the configured backend.
+	 * Loads the RSA private key from the configured backend, regenerating the
+	 * keypair atomically when missing or legacy.
 	 *
-	 * @return array{private: string, public: string}
+	 * @return string
 	 * @throws \Exception
 	 */
-	private static function getKeys(): array
+	private static function getPrivateKey(): string
+	{
+		return self::getKey('private');
+	}
+
+	/**
+	 * Loads the RSA public key from the configured backend, regenerating the
+	 * keypair atomically when missing or legacy.
+	 *
+	 * @return string
+	 * @throws \Exception
+	 */
+	private static function getPublicKey(): string
+	{
+		return self::getKey('public');
+	}
+
+	/**
+	 * Reads the requested key slot from the configured backend. When the slot
+	 * is missing or holds a legacy value, regenerates the whole keypair and
+	 * persists both slots atomically before returning the requested one.
+	 *
+	 * @param string $which 'private' or 'public'
+	 * @return string
+	 * @throws \Exception
+	 */
+	private static function getKey(string $which): string
 	{
 		$config = Config::get('jwt');
 
@@ -68,16 +95,15 @@ class JWT
 				$key = $config['key'] ?? null;
 				if (!is_array($key) or empty($key['private']) or empty($key['public']))
 					throw new \Exception('JWT fixed key must be an array with "private" and "public" PEM entries (RS256). Legacy HS512 string keys are no longer supported.');
-				return $key;
+				return $key[$which];
 
 			case 'redis':
 				if (!InstalledVersions::isInstalled('model/redis'))
 					throw new \Exception('Please install model/redis');
 
 				$redisKey = $config['key'] ?? 'model:jwt';
-				$storedPrivate = self::unwrapFromStorage(\Model\Redis\Redis::get($redisKey . ':private'));
-				$storedPublic = \Model\Redis\Redis::get($redisKey . ':public');
-				if (!$storedPrivate or !$storedPublic) {
+				$stored = self::readSlot($which, \Model\Redis\Redis::get($redisKey . ':' . $which));
+				if (!$stored) {
 					$keys = self::generateNewKey();
 					\Model\Redis\Redis::set($redisKey . ':private', self::wrapForStorage($keys['private']));
 					\Model\Redis\Redis::set($redisKey . ':public', $keys['public']);
@@ -85,44 +111,62 @@ class JWT
 						\Model\Redis\Redis::expire($redisKey . ':private', $config['expire']);
 						\Model\Redis\Redis::expire($redisKey . ':public', $config['expire']);
 					}
-
-					return $keys;
+					return $keys[$which];
 				}
 
-				return [
-					'private' => $storedPrivate,
-					'public' => $storedPublic,
-				];
+				return $stored;
 
 			case 'file':
 				if (empty($config['path']))
 					throw new \Exception('Please define a path for JWT key file');
 
 				$projectRoot = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR;
-				$fullPath = $projectRoot . $config['path'];
+				$basePath = $projectRoot . $config['path'];
+				$slotPath = $basePath . '.' . $which;
 
-				$stored = file_exists($fullPath) ? file_get_contents($fullPath) : null;
-				$stored = self::unwrapFromStorage($stored);
+				$rawStored = file_exists($slotPath) ? file_get_contents($slotPath) : null;
+				$stored = self::readSlot($which, $rawStored);
 				if (!$stored or self::isLegacyKey($stored)) {
 					$keys = self::generateNewKey();
-					file_put_contents($fullPath, self::wrapForStorage(json_encode($keys)));
-					return $keys;
+					file_put_contents($basePath . '.private', self::wrapForStorage($keys['private']));
+					file_put_contents($basePath . '.public', $keys['public']);
+					return $keys[$which];
 				}
-				return json_decode($stored, true);
+				return $stored;
 
 			case 'db':
 				$settingsKey = $config['key'] ?? 'model.jwt.key';
-				$stored = self::unwrapFromStorage(\Model\Settings\Settings::get($settingsKey));
+				$stored = self::readSlot($which, \Model\Settings\Settings::get($settingsKey . '.' . $which));
 				if (!$stored or self::isLegacyKey($stored)) {
 					$keys = self::generateNewKey();
-					\Model\Settings\Settings::set($settingsKey, self::wrapForStorage(json_encode($keys)));
-					return $keys;
+					\Model\Settings\Settings::set($settingsKey . '.private', self::wrapForStorage($keys['private']));
+					\Model\Settings\Settings::set($settingsKey . '.public', $keys['public']);
+					return $keys[$which];
 				}
-				return json_decode($stored, true);
+				return $stored;
 
 			default:
 				throw new \Exception('Invalid JWT storage type');
 		}
+	}
+
+	/**
+	 * Normalizes a raw stored slot value: the private slot may be encrypted and
+	 * must be unwrapped; the public slot is stored as-is.
+	 *
+	 * @param string $which
+	 * @param string|false|null $rawStored
+	 * @return string|null
+	 * @throws \Exception
+	 */
+	private static function readSlot(string $which, string|false|null $rawStored): ?string
+	{
+		if ($which === 'private')
+			return self::unwrapFromStorage($rawStored);
+
+		if ($rawStored === null or $rawStored === false or $rawStored === '')
+			return null;
+		return $rawStored;
 	}
 
 	/**
@@ -131,12 +175,7 @@ class JWT
 	 */
 	private static function isLegacyKey(string $stored): bool
 	{
-		$decoded = json_decode($stored, true);
-		return !is_array($decoded)
-			or empty($decoded['private'])
-			or empty($decoded['public'])
-			or !str_starts_with(ltrim($decoded['private']), '-----BEGIN')
-			or !str_starts_with(ltrim($decoded['public']), '-----BEGIN');
+		return !str_starts_with(ltrim($stored), '-----BEGIN');
 	}
 
 	/**
@@ -167,7 +206,8 @@ class JWT
 
 	/**
 	 * Wraps a value before storing it in the configured backend, encrypting it
-	 * with the configured "crypt_key" if present.
+	 * with the configured "crypt_key" if present. Used only for the private key
+	 * slot — public keys are stored as-is since they are not sensitive.
 	 *
 	 * @param string $value
 	 * @return string
