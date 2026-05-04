@@ -45,6 +45,14 @@ class ConfigProvider extends AbstractConfigProvider
 					];
 				},
 			],
+			[
+				'version' => '0.5.0',
+				'migration' => function (array $currentConfig, string $env) {
+					if (($currentConfig['type'] ?? null) === 'fixed' and !is_array($currentConfig['key'] ?? null))
+						$currentConfig['key'] = null;
+					return $currentConfig;
+				},
+			],
 		];
 	}
 }

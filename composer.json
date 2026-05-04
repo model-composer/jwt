@@ -12,8 +12,9 @@
         "psr-4": {"Model\\Jwt\\": "src/"}
     },
     "require": {
+        "ext-openssl": "*",
         "model/config": "^0.7.0",
-        "firebase/php-jwt": "^6.1",
+        "firebase/php-jwt": "^7.0",
         "composer-runtime-api": "^2.1"
     },
     "suggest": {
